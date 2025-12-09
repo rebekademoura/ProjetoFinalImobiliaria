@@ -62,9 +62,8 @@ public class ImovelModel implements Serializable {
     private String complemento;
     private String cidade;
 
-public String getCidade() { return cidade; }
-public void setCidade(String cidade) { this.cidade = cidade; }
-
+    public String getCidade() { return cidade; }
+    public void setCidade(String cidade) { this.cidade = cidade; }
 
     @Column(length = 8)
     private String cep;
@@ -90,7 +89,6 @@ public void setCidade(String cidade) { this.cidade = cidade; }
     @JoinColumn(name = "usuario_id", nullable = false)
     private UserModel usuario;
 
-
     @Override
     public int hashCode() {
         final int prime = 31;
@@ -102,7 +100,7 @@ public void setCidade(String cidade) { this.cidade = cidade; }
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
-            return false;
+            return true;          // ✅ corrigido
         if (obj == null)
             return false;
         if (getClass() != obj.getClass())

@@ -44,6 +44,19 @@ public class ImovelService {
         return model.orElse(null);
     }
 
+    /**
+     * Lista apenas os imóveis cadastrados por um determinado usuário
+     * (usado em /imoveis/meus).
+     */
+    public List<ImovelModel> listarPorUsuario(UserModel usuario) {
+        if (usuario == null || usuario.getId() == null) {
+            throw new IllegalArgumentException("Usuário inválido para listagem de imóveis.");
+        }
+        return repository.findByUsuario(usuario);
+        // Se você tiver usado findByUsuarioId no repository, use:
+        // return repository.findByUsuarioId(usuario.getId());
+    }
+
     // ========= INSERIR A PARTIR DO DTO =========
 
     public ImovelModel insertFromDto(ImovelRequestDTO dto, UserModel usuario) {
@@ -94,7 +107,7 @@ public class ImovelService {
         // 🔗 USUÁRIO DONO / CORRETOR
         imovel.setUsuario(usuario);
 
-        // default para status/destaque se vierem nulos
+        // defaults
         if (imovel.getStatus() == null || imovel.getStatus().isBlank()) {
             imovel.setStatus("ATIVO");
         }
@@ -111,18 +124,44 @@ public class ImovelService {
         return repository.save(model);
     }
 
-    // ========= UPDATE / DELETE (mantidos como estavam) =========
+    // ========= UPDATE / DELETE =========
 
     public ImovelModel update(ImovelModel model) {
-        try {
-            if (find(model.getId()) != null) {
-                return repository.save(model);
-            }
-            return null;
-        } catch (Exception e) {
-            return null;
-        }
+    Integer id = model.getId();
+
+    Optional<ImovelModel> opt = repository.findById(id);
+    if (opt.isEmpty()) {
+        return null; // vai virar 404 lá no controller
     }
+
+    ImovelModel existente = opt.get();
+
+    // Copia os campos que podem ser alterados
+    existente.setTitulo(model.getTitulo());
+    existente.setDescricao(model.getDescricao());
+    existente.setCaracteristicas(model.getCaracteristicas());
+    existente.setFinalidade(model.getFinalidade());
+    existente.setPrecoVenda(model.getPrecoVenda());
+    existente.setPrecoAluguel(model.getPrecoAluguel());
+    existente.setEndereco(model.getEndereco());
+    existente.setNumero(model.getNumero());
+    existente.setCep(model.getCep());
+    existente.setComplemento(model.getComplemento());
+    existente.setStatus(model.getStatus());
+    existente.setDormitorios(model.getDormitorios());
+    existente.setBanheiros(model.getBanheiros());
+    existente.setGaragem(model.getGaragem());
+    existente.setAreaConstruida(model.getAreaConstruida());
+    existente.setAreaTotal(model.getAreaTotal());
+
+    // se tiver relacionamentos:
+    existente.setBairro(model.getBairro());
+    existente.setTipoImovel(model.getTipoImovel());
+    existente.setUsuario(model.getUsuario());
+
+    return repository.save(existente);
+}
+
 
     public void delete(Integer id) {
         repository.deleteById(id);

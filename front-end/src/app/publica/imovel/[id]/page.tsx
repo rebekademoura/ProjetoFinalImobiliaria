@@ -1,3 +1,4 @@
+// src/app/publica/imovel/[id]/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -29,8 +30,9 @@ export default function ImovelPublicoDetalhePage() {
         const dados = await buscarImovel(id);
         setImovel(dados);
       } catch (e: any) {
-        console.error("Erro ao carregar imóvel:", e);
-        const msg = String(e?.message || e);
+        console.warn("Erro ao carregar imóvel:", e);
+        const msg =
+          e instanceof Error ? e.message : String(e?.message || e);
 
         if (msg.includes("404")) {
           setErro("Imóvel não encontrado.");
@@ -46,8 +48,8 @@ export default function ImovelPublicoDetalhePage() {
   }, [id]);
 
   function formatarPreco(valor?: number | null) {
-    if (!valor && valor !== 0) return "-";
-    return valor.toLocaleString("pt-BR", {
+    if (valor === null || valor === undefined) return "-";
+    return Number(valor).toLocaleString("pt-BR", {
       style: "currency",
       currency: "BRL",
     });
@@ -60,6 +62,14 @@ export default function ImovelPublicoDetalhePage() {
     undefined;
 
   const tituloPagina = imovel?.titulo ?? (id ? `Imóvel #${id}` : "Imóvel");
+
+  // 🧠 tratar bairro: pode ser string ou objeto
+  const nomeBairro =
+    imovel && imovel.bairro
+      ? typeof imovel.bairro === "string"
+        ? imovel.bairro
+        : imovel.bairro.nome
+      : undefined;
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -180,12 +190,10 @@ export default function ImovelPublicoDetalhePage() {
             <section className="space-y-4">
               <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 shadow-sm">
                 <div className="relative aspect-video">
-                  {/* depois você troca isso por uma <img /> real */}
                   <div className="flex h-full w-full items-center justify-center text-sm font-medium text-slate-500">
                     Foto do imóvel
                   </div>
 
-                  {/* chip no canto */}
                   {imovel.finalidade && (
                     <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur">
                       {imovel.finalidade === "VENDA"
@@ -217,7 +225,6 @@ export default function ImovelPublicoDetalhePage() {
                   Informações principais
                 </h2>
 
-                {/* Preço principal */}
                 <div className="mb-4">
                   <span className="block text-xs font-medium uppercase tracking-wide text-slate-400">
                     Valor
@@ -265,9 +272,9 @@ export default function ImovelPublicoDetalhePage() {
                         <br />
                       </>
                     )}
-                    {(imovel.bairro || imovel.cidade) && (
+                    {(nomeBairro || imovel.cidade) && (
                       <>
-                        {imovel.bairro && <>{imovel.bairro} - </>}
+                        {nomeBairro && <>{nomeBairro} - </>}
                         {imovel.cidade}
                         <br />
                       </>
@@ -323,7 +330,6 @@ export default function ImovelPublicoDetalhePage() {
                   </ul>
                 </div>
 
-                {/* Botões */}
                 <div className="mt-5 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -339,11 +345,6 @@ export default function ImovelPublicoDetalhePage() {
                     Ver outros imóveis
                   </button>
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-xs text-slate-600 shadow-sm">
-                As informações apresentadas são de responsabilidade do anunciante
-                e podem ser alteradas sem aviso prévio.
               </div>
             </aside>
           </div>

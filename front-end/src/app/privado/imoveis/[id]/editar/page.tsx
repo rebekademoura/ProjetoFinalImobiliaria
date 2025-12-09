@@ -9,9 +9,8 @@ import {
   TipoImovel,
   listarBairros,
   listarTiposImoveis,
-  // você cria essas duas no lib/api:
-  // obterImovel,
-  // atualizarImovel,
+  buscarImovel,
+  atualizarImovel,
 } from "@/src/lib/api";
 
 type FormState = {
@@ -82,6 +81,7 @@ export default function EditarImovelPage() {
         setMensagem(null);
         setCarregando(true);
 
+        // Carrega bairros e tipos em paralelo
         const [listaBairros, listaTipos] = await Promise.all([
           listarBairros(),
           listarTiposImoveis(),
@@ -90,36 +90,17 @@ export default function EditarImovelPage() {
         setBairros(listaBairros);
         setTipos(listaTipos);
 
-        // 👉 Buscar imóvel na API
-        // Crie em src/lib/api.ts algo como:
-        // export async function obterImovel(id: number) { ... }
-        const token =
-          typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        // Busca o imóvel (rota pública da lib/api)
+        const imovel = await buscarImovel(id);
 
-        // se GET /imoveis/{id} estiver liberado, não precisa de token aqui
-        const resposta = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE}/imoveis/${id}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-          }
-        );
-
-        if (!resposta.ok) {
-          throw new Error(`Erro ao carregar imóvel (HTTP ${resposta.status})`);
-        }
-
-        const imovel = await resposta.json();
-
-        // Ajuste os campos conforme o DTO que tua API devolve
+        // Preenche o form com o que vier do back
         setForm({
           titulo: imovel.titulo ?? "",
           descricao: imovel.descricao ?? "",
           caracteristicas: imovel.caracteristicas ?? "",
-          finalidade: imovel.finalidade ?? "VENDA",
-          precoVenda: imovel.precoVenda != null ? String(imovel.precoVenda) : "",
+          finalidade: (imovel.finalidade as "VENDA" | "ALUGUEL") ?? "VENDA",
+          precoVenda:
+            imovel.precoVenda != null ? String(imovel.precoVenda) : "",
           precoAluguel:
             imovel.precoAluguel != null ? String(imovel.precoAluguel) : "",
           endereco: imovel.endereco ?? "",
@@ -130,7 +111,8 @@ export default function EditarImovelPage() {
           destaque: imovel.destaque ?? false,
           dormitorios:
             imovel.dormitorios != null ? String(imovel.dormitorios) : "",
-          banheiros: imovel.banheiros != null ? String(imovel.banheiros) : "",
+          banheiros:
+            imovel.banheiros != null ? String(imovel.banheiros) : "",
           garagem: imovel.garagem != null ? String(imovel.garagem) : "",
           areaConstruida:
             imovel.areaConstruida != null
@@ -138,22 +120,22 @@ export default function EditarImovelPage() {
               : "",
           areaTotal:
             imovel.areaTotal != null ? String(imovel.areaTotal) : "",
-          bairroId: imovel.bairroId
-            ? String(imovel.bairroId)
-            : imovel.bairro?.id
-            ? String(imovel.bairro.id)
+          bairroId: (imovel as any).bairroId
+            ? String((imovel as any).bairroId)
+            : (imovel as any).bairro?.id
+            ? String((imovel as any).bairro.id)
             : "",
-          tipoImovelId: imovel.tipoImovelId
-            ? String(imovel.tipoImovelId)
-            : imovel.tipoImovel?.id
-            ? String(imovel.tipoImovel.id)
+          tipoImovelId: (imovel as any).tipoImovelId
+            ? String((imovel as any).tipoImovelId)
+            : (imovel as any).tipoImovel?.id
+            ? String((imovel as any).tipoImovel.id)
             : "",
         });
       } catch (erro) {
         console.error(erro);
         setMensagem(
           (erro as Error).message ||
-          "Não foi possível carregar os dados do imóvel."
+            "Não foi possível carregar os dados do imóvel."
         );
       } finally {
         setCarregando(false);
@@ -169,14 +151,6 @@ export default function EditarImovelPage() {
     e.preventDefault();
     setMensagem(null);
 
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-    if (!token) {
-      setMensagem("Você precisa estar logado para editar imóveis.");
-      return;
-    }
-
     try {
       setSalvando(true);
 
@@ -184,59 +158,43 @@ export default function EditarImovelPage() {
       const banheiros = form.banheiros ? Number(form.banheiros) : 0;
       const garagem = form.garagem ? Number(form.garagem) : 0;
 
-      const precoVenda = form.precoVenda
-        ? Number(form.precoVenda.replace(",", "."))
-        : null;
-      const precoAluguel = form.precoAluguel
-        ? Number(form.precoAluguel.replace(",", "."))
-        : null;
-      const areaConstruida = form.areaConstruida
-        ? Number(form.areaConstruida.replace(",", "."))
-        : null;
-      const areaTotal = form.areaTotal
-        ? Number(form.areaTotal.replace(",", "."))
-        : null;
+      const parseDecimal = (value: string): number | null => {
+        if (!value) return null;
+        return Number(value.replace(",", "."));
+      };
 
-      // Se você tiver atualizarImovel() no lib/api, pode usar aqui:
-      // await atualizarImovel(id, { ... }, token);
-      const resposta = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE}/imoveis/${id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            titulo: form.titulo,
-            descricao: form.descricao,
-            caracteristicas: form.caracteristicas || undefined,
-            finalidade: form.finalidade,
-            precoVenda,
-            precoAluguel,
-            endereco: form.endereco,
-            numero: form.numero,
-            cep: form.cep,
-            complemento: form.complemento || undefined,
-            status: form.status,
-            destaque: form.destaque,
-            dormitorios,
-            banheiros,
-            garagem,
-            areaConstruida,
-            areaTotal,
-            bairroId: Number(form.bairroId),
-            tipoImovelId: Number(form.tipoImovelId),
-          }),
-        }
-      );
+      const precoVenda = parseDecimal(form.precoVenda);
+      const precoAluguel = parseDecimal(form.precoAluguel);
+      const areaConstruida = parseDecimal(form.areaConstruida);
+      const areaTotal = parseDecimal(form.areaTotal);
 
-      if (!resposta.ok) {
-        throw new Error(`Erro ao atualizar imóvel (HTTP ${resposta.status})`);
-      }
+      // Usa a função da lib/api (rota autenticada, com token)
+      await atualizarImovel(id, {
+        titulo: form.titulo,
+        descricao: form.descricao,
+        caracteristicas: form.caracteristicas || undefined,
+        finalidade: form.finalidade,
+        precoVenda,
+        precoAluguel,
+        endereco: form.endereco,
+        numero: form.numero,
+        cep: form.cep,
+        complemento: form.complemento || undefined,
+        status: form.status,
+        destaque: form.destaque,
+        dormitorios,
+        banheiros,
+        garagem,
+        areaConstruida,
+        areaTotal,
+        bairroId: form.bairroId ? Number(form.bairroId) : undefined,
+        tipoImovelId: form.tipoImovelId
+          ? Number(form.tipoImovelId)
+          : undefined,
+      });
 
       setMensagem("Imóvel atualizado com sucesso.");
-      // Se quiser voltar pra listagem:
+      // Se quiser redirecionar de volta:
       // router.push("/privado/imoveis");
     } catch (error) {
       console.error(error);
@@ -477,7 +435,10 @@ export default function EditarImovelPage() {
                   <option value="">Selecione...</option>
                   {bairros.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.nome} - {b.cidade}/{b.estado}
+                      {b.nome}
+                      {b.cidade && b.estado
+                        ? ` - ${b.cidade}/${b.estado}`
+                        : ""}
                     </option>
                   ))}
                 </select>
@@ -518,10 +479,9 @@ export default function EditarImovelPage() {
               </div>
 
               <div className="md:col-span-2 flex items-center justify-between gap-3 pt-2">
-
                 <div className="flex items-center gap-3">
                   {mensagem && (
-                    <p className="text-xs text-gray-700 max-w-[220px]">
+                    <p className="text-xs text-gray-700 max-w-[260px]">
                       {mensagem}
                     </p>
                   )}

@@ -47,35 +47,15 @@ public class SecurityConfig {
                 // Libera login, cadastro etc
                 .requestMatchers("/auth/**").permitAll()
 
-                // (Opcional) liberar /users em dev
+                // Libera totalmente /users (inclui /users/me) – DEV
                 .requestMatchers("/users/**").permitAll()
 
                 // Libera OPTIONS (preflight do browser)
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // GET públicos
-                .requestMatchers(HttpMethod.GET,
-                        "/imoveis/**",
-                        "/bairros/**",
-                        "/tiposImoveis/**"
-                ).permitAll()
-
-                // POST públicos (dev)
-                .requestMatchers(HttpMethod.POST,
-                        "/imoveis/**",
-                        "/bairros/**",
-                        "/tiposImoveis/**"
-                ).permitAll()
-
-                // PUT públicos (dev)
-                .requestMatchers(HttpMethod.PUT,
-                        "/imoveis/**",
-                        "/bairros/**",
-                        "/tiposImoveis/**"
-                ).permitAll()
-
-                // DELETE públicos (dev)
-                .requestMatchers(HttpMethod.DELETE,
+                // 🔓 Libera TODOS os endpoints de imóveis, bairros e tipos de imóveis
+                // para QUALQUER método (GET, POST, PUT, DELETE ...)
+                .requestMatchers(
                         "/imoveis/**",
                         "/bairros/**",
                         "/tiposImoveis/**"
@@ -97,7 +77,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         // Em dev pode liberar geral
         config.setAllowedOriginPatterns(List.of("*"));
-        config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
 

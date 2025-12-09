@@ -1,5 +1,3 @@
-// src/lib/api.ts
-
 // =======================
 // Tipos compartilhados
 // =======================
@@ -11,6 +9,19 @@ export type StatusImovel =
   | "ALUGADO"
   | "VENDIDO"
   | string;
+
+export type Bairro = {
+  id: number;
+  nome: string;
+  cidade?: string;
+  estado?: string;
+};
+
+export type TipoImovel = {
+  id: number;
+  nome: string;
+  descricao?: string;
+};
 
 export type Imovel = {
   id: number;
@@ -39,10 +50,13 @@ export type Imovel = {
   cep?: string;
   complemento?: string;
   cidade?: string;
-  bairro?: string;
+  bairro?: string | Bairro;
 
   bairroId?: number;
   tipoImovelId?: number;
+
+  // dono do imóvel (corretor)
+  usuarioId?: number;
 };
 
 export type NovoUsuario = {
@@ -59,30 +73,10 @@ export type Usuario = {
   role: string;
 };
 
-export type Bairro = {
-  id: number;
-  nome: string;
-  cidade?: string;
-  estado?: string;
-};
-
-export type TipoImovel = {
-  id: number;
-  nome: string;
-  descricao?: string;
-};
-
 // =======================
 // Função base da API
 // =======================
 
-/**
- * Função base para chamadas HTTP.
- * - Monta a URL com base em NEXT_PUBLIC_API_BASE;
- * - Configura JSON + Authorization (quando withAuth = true);
- * - Faz o fetch e valida erros HTTP;
- * - Tenta converter a resposta para JSON.
- */
 async function baseApi<T>(
   path: string,
   init: RequestInit = {},
@@ -98,9 +92,11 @@ async function baseApi<T>(
   }
 
   const headers = new Headers(init.headers || {});
-  headers.set("Content-Type", "application/json");
+  // só define JSON se não for multipart ou outro tipo custom
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
-  // Se a rota exigir autenticação, tenta enviar o token salvo no localStorage
   const token =
     withAuth && typeof window !== "undefined"
       ? localStorage.getItem("token")
@@ -122,14 +118,12 @@ async function baseApi<T>(
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    // Devolve texto do backend se tiver, senão um erro genérico com status
     throw new Error(txt || `HTTP ${res.status}`);
   }
 
-  // Pode haver respostas SEM corpo (ex.: 201/204)
   const raw = await res.text().catch(() => "");
   if (!raw) {
-    // @ts-expect-error – em alguns casos T pode ser void/null
+    // @ts-expect-error – T pode ser void
     return undefined;
   }
 
@@ -144,7 +138,6 @@ async function baseApi<T>(
 // Wrappers públicos/privados
 // =======================
 
-/** Para rotas públicas (NÃO envia Authorization) */
 export async function apiPublic<T>(
   path: string,
   init: RequestInit = {}
@@ -152,7 +145,6 @@ export async function apiPublic<T>(
   return baseApi<T>(path, init, false);
 }
 
-/** Para rotas autenticadas (envia Authorization se houver token) */
 export async function api<T>(
   path: string,
   init: RequestInit = {}
@@ -164,11 +156,6 @@ export async function api<T>(
 // Imóveis
 // =======================
 
-/**
- * Lista imóveis.
- * Se finalidade for informada ("VENDA" | "ALUGUEL"), aplica filtro na URL.
- * Rota pública: não exige token.
- */
 export async function listarImoveis(
   finalidade?: "VENDA" | "ALUGUEL"
 ): Promise<Imovel[]> {
@@ -176,17 +163,15 @@ export async function listarImoveis(
   return apiPublic<Imovel[]>(`/imoveis${params}`);
 }
 
-/** Busca um imóvel específico por ID (público). */
 export async function buscarImovel(id: number | string): Promise<Imovel> {
   return apiPublic<Imovel>(`/imoveis/${id}`);
 }
 
-/**
- * Cria um novo imóvel.
- * - Usa rota autenticada (envia Authorization: Bearer <token>);
- * - O backend usa o usuário autenticado para associar o usuario_id.
- * Retorna o imóvel criado.
- */
+// usando endpoint autenticado que retorna só imóveis do corretor logado
+export async function listarImoveisDoCorretor(): Promise<Imovel[]> {
+  return api<Imovel[]>("/imoveis/meus");
+}
+
 export async function criarImovel(
   dados: Partial<Imovel>
 ): Promise<Imovel> {
@@ -196,21 +181,18 @@ export async function criarImovel(
   });
 }
 
-/** Atualiza dados de um imóvel existente (rota autenticada). */
 export async function atualizarImovel(
   id: number | string,
   dados: Partial<Imovel>
 ): Promise<void> {
-  await api<void>(`/imoveis/${id}`, {
+  // não exige estar logado – chamada pública
+  return apiPublic<void>(`/imoveis/${id}`, {
     method: "PUT",
     body: JSON.stringify(dados),
   });
 }
 
-/**
- * Exclui um imóvel pelo ID (rota autenticada).
- * Usado na tela de admin.
- */
+
 export async function excluirImovel(
   id: number | string
 ): Promise<void> {
@@ -219,35 +201,86 @@ export async function excluirImovel(
   });
 }
 
-/**
- * Alias para manter compatibilidade se você já usava deletarImovel em algum lugar.
- * (Ambos fazem a mesma coisa.)
- */
 export const deletarImovel = excluirImovel;
 
 // =======================
-// Bairros e Tipos de Imóvel
+// Bairros
 // =======================
 
-/** Lista todos os bairros (público). */
 export async function listarBairros(): Promise<Bairro[]> {
   return apiPublic<Bairro[]>("/bairros");
 }
 
-/** Lista todos os tipos de imóvel (público). Ajuste o path se no back estiver diferente. */
-export async function listarTiposImoveis(): Promise<TipoImovel[]> {
-  return apiPublic<TipoImovel[]>("/tiposImoveis");
+export type BairroInput = {
+  nome: string;
+  cidade: string;
+  estado: string;
+};
+
+export async function criarBairro(data: BairroInput) {
+  return api<Bairro>("/bairros", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function atualizarBairro(id: number, data: BairroInput) {
+  return api<Bairro>(`/bairros/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function excluirBairro(id: number) {
+  return api<void>(`/bairros/${id}`, {
+    method: "DELETE",
+  });
 }
 
 // =======================
-// Usuários
+// Tipos de Imóvel
 // =======================
 
-/**
- * Cria um novo usuário.
- * - Usado no admin para cadastrar corretores;
- * - Usa rota autenticada (apenas admin).
- */
+export async function listarTiposImoveis(): Promise<TipoImovel[]> {
+  // use o mesmo path que está no backend (ex.: @RequestMapping("/tiposImoveis"))
+  return apiPublic<TipoImovel[]>("/tiposImoveis");
+}
+
+export type TipoImovelInput = {
+  nome: string;
+  descricao?: string | null;
+};
+
+export async function criarTipoImovel(data: TipoImovelInput) {
+  return api<TipoImovel>("/tiposImoveis", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function atualizarTipoImovel(id: number, data: TipoImovelInput) {
+  return api<TipoImovel>(`/tiposImoveis/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function excluirTipoImovel(id: number) {
+  return api<void>(`/tiposImoveis/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// =======================
+// Usuários (admin)
+// =======================
+
+export type UsuarioUpdateInput = {
+  name?: string;
+  email?: string;
+  role?: string;
+};
+
 export async function criarUsuario(dados: NovoUsuario): Promise<Usuario> {
   return api<Usuario>("/users", {
     method: "POST",
@@ -255,19 +288,49 @@ export async function criarUsuario(dados: NovoUsuario): Promise<Usuario> {
   });
 }
 
-/** Lista todos os usuários do sistema (rota autenticada). */
 export async function listarUsuarios(): Promise<Usuario[]> {
   return api<Usuario[]>("/users");
 }
 
-/**
- * Exclui um usuário pelo ID (rota autenticada).
- * Usado na tabela de usuários do admin.
- */
 export async function excluirUsuario(
   id: number | string
 ): Promise<void> {
   await api<void>(`/users/${id}`, {
     method: "DELETE",
+  });
+}
+
+export async function atualizarUsuario(
+  id: number,
+  data: UsuarioUpdateInput
+) {
+  return api<Usuario>(`/users/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+
+export async function obterMeuUsuario(): Promise<Usuario> {
+  return api<Usuario>("/users/me");
+}
+
+export async function atualizarMeuUsuario(data: {
+  name?: string;
+  email?: string;
+}): Promise<Usuario> {
+  return api<Usuario>("/users/me", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function atualizarMinhaSenha(data: {
+  senhaAtual: string;
+  novaSenha: string;
+}): Promise<void> {
+  await api<void>("/users/me/senha", {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 }

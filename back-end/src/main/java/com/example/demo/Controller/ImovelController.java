@@ -40,7 +40,7 @@ public class ImovelController {
     @Autowired
     private UserRepository userRepository;
 
-    // ========= LISTAGENS =========
+    // ========= LISTAGENS GERAIS =========
 
     @GetMapping
     public ResponseEntity<List<ImovelModel>> getAllImoveis() {
@@ -61,6 +61,24 @@ public class ImovelController {
             log.warn("[ImovelController] Imóvel NÃO encontrado: id={}", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
+    }
+
+    // ========= MEUS IMÓVEIS (somente do usuário logado) =========
+
+    @GetMapping("/meus")
+    public ResponseEntity<List<ImovelModel>> listarMeusImoveis(Authentication authentication) {
+        log.info("[ImovelController] GET /imoveis/meus chamado. authentication = {}", authentication);
+
+        // reaproveita o helper já existente
+        UserModel usuarioLogado = getUsuarioLogado(authentication);
+        log.info("[ImovelController] Usuário logado para /meus: id={}, email={}",
+                usuarioLogado.getId(), usuarioLogado.getEmail());
+
+        List<ImovelModel> lista = service.listarPorUsuario(usuarioLogado);
+        log.info("[ImovelController] Retornando {} imóveis do usuário id={}",
+                lista.size(), usuarioLogado.getId());
+
+        return ResponseEntity.ok(lista);
     }
 
     // ========= CRIAR COM DTO + USUÁRIO DA SESSÃO =========
@@ -97,24 +115,24 @@ public class ImovelController {
     // ========= UPDATE =========
 
     @PutMapping("/{id}")
-    public ResponseEntity<Void> update(
-            @RequestBody ImovelModel model,
-            @PathVariable Integer id) {
-        try {
-            log.info("[ImovelController] PUT /imoveis/{} chamado", id);
-            model.setId(id);
-            ImovelModel atualizado = service.update(model);
-            if (atualizado == null) {
-                log.warn("[ImovelController] Imóvel não encontrado para update: id={}", id);
-                return ResponseEntity.notFound().build();
-            }
-            log.info("[ImovelController] Imóvel atualizado: id={}", id);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            log.error("[ImovelController] Erro ao atualizar imóvel id={}: {}", id, e.getMessage(), e);
-            return ResponseEntity.notFound().build();
-        }
+public ResponseEntity<ImovelModel> update(
+        @RequestBody ImovelModel model,
+        @PathVariable Integer id) {
+
+    log.info("[ImovelController] PUT /imoveis/{} chamado", id);
+    model.setId(id);
+
+    ImovelModel atualizado = service.update(model);
+
+    if (atualizado == null) {
+        log.warn("[ImovelController] Imóvel não encontrado para update: id={}", id);
+        return ResponseEntity.notFound().build(); // 404 só quando realmente não achou
     }
+
+    log.info("[ImovelController] Imóvel atualizado: id={}", id);
+    return ResponseEntity.ok(atualizado); // devolve 200 com o objeto atualizado
+}
+
 
     // ========= DELETE =========
 
